@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#080B10">
+<meta name="color-scheme" content="dark">
+<title>BMAP — Biznesingizni skanerlang</title>
+<meta name="description" content="BMAP — biznes jarayonlaringizni skanerlab, pul va vaqtni yeb qo'yayotgan zaif nuqtalarni topadigan diagnostika tizimi. Nmap tarmoqni skanerlagani kabi — BMAP biznesni skanerlaydi.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#080B10; --panel:#0E1420; --panel2:#121A28;
+  --line:#1E293D; --line-bright:#2A3850;
+  --text:#EAF0FB; --dim:#93A0B8; --mute:#56637C;
+  --phosphor:#47D6A8; --phosphor-dim:#2C8E73;
+  --alert:#E3A83D; --alert-dim:#8C6A22;
+  --breach:#E5563F; --breach-dim:#7E3326;
+  --sans:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --mono:'IBM Plex Mono','SF Mono','JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+*,*::before,*::after{ box-sizing:border-box; }
+html{ -webkit-text-size-adjust:100%; }
+body{ margin:0; background:var(--ink); color:var(--text); font-family:var(--sans); line-height:1.6; -webkit-font-smoothing:antialiased; overflow-x:hidden; }
+img,svg{ display:block; max-width:100%; }
+a{ color:inherit; }
+section{ padding:104px 0; position:relative; scroll-margin-top:88px; }
+.wrap{ max-width:1180px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+h1,h2,h3,h4{ font-family:var(--sans); font-weight:700; margin:0; color:var(--text); letter-spacing:-0.02em; }
+p{ margin:0; }
+a:focus-visible, button:focus-visible, summary:focus-visible{ outline:2px solid var(--phosphor); outline-offset:3px; border-radius:4px; }
+
+/* ---------- ambient background ---------- */
+.bg-grid{ position:fixed; inset:0; z-index:-2; pointer-events:none;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:44px 44px; opacity:0.32; }
+.bg-vignette{ position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:radial-gradient(ellipse 900px 500px at 50% -8%, rgba(71,214,168,0.10), transparent 65%); }
+
+/* ---------- nav ---------- */
+.nav{ position:sticky; top:0; z-index:50; backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  background:rgba(8,11,16,0.74); border-bottom:1px solid var(--line); }
+.nav-inner{ display:flex; align-items:center; justify-content:space-between; padding:15px 24px; max-width:1180px; margin:0 auto; }
+.brand{ display:flex; align-items:center; gap:9px; font-family:var(--mono); font-weight:600; font-size:15px; letter-spacing:1.5px; text-decoration:none; color:var(--text); }
+.nav-links{ display:flex; align-items:center; gap:30px; }
+.nav-links a{ color:var(--dim); text-decoration:none; font-size:13px; font-family:var(--mono); transition:color .15s; }
+.nav-links a:hover{ color:var(--text); }
+.status-pill{ display:flex; align-items:center; gap:7px; font-family:var(--mono); font-size:11px; color:var(--phosphor);
+  border:1px solid var(--phosphor-dim); border-radius:999px; padding:6px 12px; letter-spacing:0.5px; white-space:nowrap; }
+.status-dot{ width:6px; height:6px; border-radius:50%; background:var(--phosphor); animation:blink 1.8s ease-in-out infinite; flex-shrink:0; }
+
+/* ---------- eyebrow / section headings ---------- */
+.eyebrow{ font-family:var(--mono); font-size:12px; letter-spacing:2.6px; text-transform:uppercase; color:var(--phosphor);
+  margin:0 0 18px; display:flex; align-items:center; gap:12px; }
+.eyebrow::before{ content:''; width:22px; height:1px; background:var(--phosphor-dim); flex-shrink:0; }
+h2.sec-title{ font-size:clamp(1.7rem,2.4vw + 1rem,2.5rem); line-height:1.16; max-width:760px; }
+p.sec-lead{ font-size:1rem; color:var(--dim); max-width:640px; margin-top:18px; line-height:1.75; }
+
+/* ---------- hero ---------- */
+.hero{ padding-top:80px; padding-bottom:108px; overflow:hidden; }
+.radar{ position:absolute; width:860px; height:860px; border-radius:50%; top:-300px; right:-320px; pointer-events:none; z-index:0;
+  background:conic-gradient(from 0deg, transparent 0deg, rgba(71,214,168,0.16) 10deg, transparent 48deg);
+  animation:spin 9s linear infinite; }
+.radar::before{ content:''; position:absolute; inset:60px; border-radius:50%; border:1px solid rgba(71,214,168,0.08); }
+.radar::after{ content:''; position:absolute; inset:160px; border-radius:50%; border:1px solid rgba(71,214,168,0.06); }
+.hero-head{ max-width:740px; }
+.hero h1{ font-size:clamp(2.3rem,3.6vw + 1rem,3.9rem); line-height:1.09; }
+.hero h1 .accent{ color:var(--phosphor); }
+.hero p.lead{ font-size:1.08rem; color:var(--dim); max-width:600px; margin-top:22px; line-height:1.75; }
+.hero-cta{ display:flex; gap:14px; margin-top:34px; flex-wrap:wrap; }
+.btn{ font-family:var(--mono); font-size:13.5px; padding:14px 24px; border-radius:8px; text-decoration:none;
+  display:inline-flex; align-items:center; gap:9px; border:1px solid transparent; cursor:pointer; transition:transform .15s, border-color .15s, background .15s; }
+.btn:hover{ transform:translateY(-1px); }
+.btn-primary{ background:var(--phosphor); color:#06110D; font-weight:600; }
+.btn-primary:hover{ background:#5CE2B4; }
+.btn-secondary{ background:transparent; color:var(--text); border-color:var(--line-bright); }
+.btn-secondary:hover{ border-color:var(--phosphor-dim); color:var(--phosphor); }
+.hero-stats{ display:flex; gap:34px; margin-top:44px; flex-wrap:wrap; }
+.hero-stats .n{ font-family:var(--mono); font-size:14px; color:var(--phosphor); font-weight:600; }
+.hero-stats .l{ font-size:11.5px; color:var(--mute); margin-top:4px; }
+.hero-term-wrap{ margin-top:52px; }
+
+/* ---------- terminal ---------- */
+.term{ background:var(--panel); border:1px solid var(--line-bright); border-radius:12px; overflow:hidden;
+  box-shadow:0 50px 90px -34px rgba(0,0,0,0.65); position:relative; z-index:1; max-width:760px; }
+.term-bar{ display:flex; align-items:center; gap:7px; padding:12px 16px; background:var(--panel2); border-bottom:1px solid var(--line); }
+.term-dot{ width:10px; height:10px; border-radius:50%; }
+.term-title{ margin-left:8px; font-family:var(--mono); font-size:11.5px; color:var(--mute); }
+.term-body{ padding:22px 24px 26px; font-family:var(--mono); font-size:13px; line-height:1.9; overflow-x:auto; }
+.term-cmdline{ white-space:nowrap; }
+.term-prompt{ color:var(--phosphor); margin-right:9px; }
+.cursor{ display:inline-block; width:7px; height:14px; background:var(--phosphor); margin-left:2px; vertical-align:-2px; animation:blink 1s steps(2) infinite; }
+.term-line{ opacity:0; transform:translateY(4px); transition:opacity .35s ease, transform .35s ease; margin-top:8px; }
+.term-line.shown{ opacity:1; transform:none; }
+.line-ok{ color:var(--phosphor); }
+.line-info{ color:var(--mute); }
+.line-critical{ color:var(--breach); font-weight:600; margin-top:15px; }
+.term-table{ width:100%; border-collapse:collapse; margin:12px 0 4px; font-size:12.5px; min-width:380px; }
+.term-table th{ text-align:left; color:var(--mute); font-weight:500; padding:6px 10px; border-bottom:1px solid var(--line);
+  text-transform:uppercase; letter-spacing:1px; font-size:10px; }
+.term-table td{ padding:7px 10px; border-bottom:1px solid var(--line); color:var(--dim); }
+.term-table tr:last-child td{ border-bottom:none; }
+.sev{ display:inline-flex; align-items:center; gap:6px; font-weight:600; }
+.sev-dot{ width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.sev-low{ color:var(--phosphor); } .sev-low .sev-dot{ background:var(--phosphor); }
+.sev-med{ color:var(--alert); } .sev-med .sev-dot{ background:var(--alert); }
+.sev-crit{ color:var(--breach); } .sev-crit .sev-dot{ background:var(--breach); }
+
+/* ---------- problem triad ---------- */
+.triad{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:46px; }
+.triad-card{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
+.triad-card--bmap{ border-color:var(--phosphor-dim); background:var(--panel2); }
+.triad-card h4{ font-family:var(--mono); font-size:11px; letter-spacing:1.5px; color:var(--mute); text-transform:uppercase; margin:0 0 16px; }
+.triad-card--bmap h4{ color:var(--phosphor); }
+.triad-card ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:11px; }
+.triad-card li{ font-size:13.5px; color:var(--dim); padding-left:16px; position:relative; line-height:1.55; }
+.triad-card li::before{ content:'—'; position:absolute; left:0; color:var(--mute); }
+.triad-card--bmap li::before{ color:var(--phosphor-dim); }
+
+/* ---------- pipeline ---------- */
+.pipeline-list{ margin-top:50px; display:flex; flex-direction:column; }
+.pstep{ display:grid; grid-template-columns:92px 1fr; gap:24px; padding:28px 0; border-top:1px solid var(--line); }
+.pstep:last-child{ border-bottom:1px solid var(--line); }
+.pstep .num{ font-family:var(--mono); font-size:30px; color:var(--line-bright); font-weight:600; }
+.pstep h3{ font-size:1.15rem; margin-bottom:9px; }
+.pstep p{ color:var(--dim); font-size:14px; max-width:640px; margin:0; line-height:1.7; }
+
+/* ---------- live analysis demo ---------- */
+.live-panel{ margin-top:48px; }
+.track-wrap{ overflow-x:auto; padding-bottom:6px; }
+.track{ min-width:640px; }
+.track-head{ position:relative; height:24px; margin-left:80px; }
+.track-head span{ position:absolute; transform:translateX(-50%); font-family:var(--mono); font-size:10px;
+  color:var(--mute); text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
+.lane{ display:flex; align-items:center; height:46px; }
+.lane-label{ width:80px; flex-shrink:0; font-family:var(--mono); font-size:11.5px; font-weight:600; }
+.lane-line{ position:relative; flex:1; height:2px; background:var(--line); border-radius:2px; margin-right:10px; }
+.lane-tick{ position:absolute; top:50%; width:5px; height:5px; border-radius:50%; background:var(--line-bright); transform:translate(-50%,-50%); }
+.token{ position:absolute; top:50%; width:15px; height:15px; border-radius:50%; transform:translate(-50%,-50%); z-index:2;
+  transition:left .7s cubic-bezier(.4,0,.2,1), opacity .4s ease, box-shadow .3s ease, background .3s ease, border .3s ease; }
+.token.tok-a{ background:var(--phosphor); box-shadow:0 0 0 4px rgba(71,214,168,0.18); }
+.token.tok-b{ background:var(--breach); box-shadow:0 0 0 4px rgba(229,86,63,0.18); }
+.token.tok-c{ background:var(--alert); box-shadow:0 0 0 4px rgba(227,168,61,0.18); }
+.token.is-stuck{ animation:pulse-stuck 0.9s ease-in-out infinite; }
+.token.is-dropped{ background:transparent; border:2px solid var(--breach); opacity:0.6; box-shadow:none; animation:none; }
+@keyframes pulse-stuck{ 0%,100%{ box-shadow:0 0 0 4px rgba(229,86,63,0.22); } 50%{ box-shadow:0 0 0 11px rgba(229,86,63,0.04); } }
+
+.live-log-wrap{ margin-top:30px; background:var(--panel); border:1px solid var(--line-bright); border-radius:12px; overflow:hidden; }
+.live-log-bar{ padding:11px 16px; background:var(--panel2); border-bottom:1px solid var(--line); font-family:var(--mono);
+  font-size:10.5px; color:var(--mute); display:flex; justify-content:space-between; gap:12px; letter-spacing:0.3px; }
+.live-log{ height:172px; overflow-y:auto; padding:12px 16px; font-family:var(--mono); font-size:12px; display:flex; flex-direction:column; gap:7px; }
+.log-row{ display:grid; grid-template-columns:64px 1fr 64px; gap:10px; opacity:0; animation:log-in .35s ease forwards; }
+@keyframes log-in{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:none; } }
+.log-stage{ color:var(--dim); }
+.log-time{ text-align:right; color:var(--mute); }
+.log-row.is-stuck .log-time{ color:var(--breach); font-weight:600; }
+.log-row.is-drop .log-stage{ color:var(--breach); }
+
+.live-summary{ margin-top:20px; font-size:13.5px; color:var(--dim); line-height:1.6; opacity:0; transition:opacity .6s ease; max-width:640px; }
+.live-summary.shown{ opacity:1; }
+.replay-btn{ margin-top:20px; font-family:var(--mono); font-size:12px; background:transparent; color:var(--dim);
+  border:1px solid var(--line-bright); border-radius:8px; padding:9px 16px; cursor:pointer; transition:color .15s, border-color .15s; }
+.replay-btn:hover{ color:var(--phosphor); border-color:var(--phosphor-dim); }
+
+/* ---------- report card ---------- */
+.report-card{ background:var(--panel); border:1px solid var(--line-bright); border-radius:14px; overflow:hidden; margin-top:48px; }
+.report-head{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:16px; padding:24px 26px; background:var(--panel2); border-bottom:1px solid var(--line); }
+.report-target{ font-family:var(--mono); font-size:14.5px; color:var(--text); }
+.report-target span{ display:block; font-size:10.5px; color:var(--mute); margin-top:5px; letter-spacing:0.8px; text-transform:uppercase; }
+.report-chips{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; }
+.chip{ font-family:var(--mono); font-size:11px; padding:6px 12px; border-radius:999px; border:1px solid var(--line-bright); color:var(--dim); white-space:nowrap; }
+.chip.crit{ border-color:var(--breach-dim); color:var(--breach); }
+.report-rows{ padding:6px 26px 4px; }
+.rrow{ display:grid; grid-template-columns:170px 54px 1fr 190px; gap:18px; align-items:center; padding:16px 0; border-bottom:1px solid var(--line); }
+.rrow:last-child{ border-bottom:none; }
+.rrow .stage{ font-size:14px; color:var(--text); }
+.rrow .bss{ font-family:var(--mono); font-weight:700; font-size:15px; }
+.rrow .desc{ font-size:12.5px; color:var(--mute); line-height:1.5; }
+.meter{ height:6px; border-radius:4px; background:var(--line); overflow:hidden; }
+.meter i{ display:block; height:100%; border-radius:4px; }
+.finding{ margin:20px 26px 26px; border:1px solid var(--breach-dim); background:rgba(229,86,63,0.06); border-radius:10px; padding:18px 20px; }
+.finding summary{ cursor:pointer; font-family:var(--mono); font-size:12.5px; color:var(--breach); font-weight:600; list-style:none; display:flex; align-items:center; gap:10px; }
+.finding summary::-webkit-details-marker{ display:none; }
+.finding summary::before{ content:'▸'; transition:transform .2s; flex-shrink:0; }
+.finding[open] summary::before{ transform:rotate(90deg); }
+.finding-body{ margin-top:15px; font-size:13.5px; color:var(--dim); line-height:1.75; }
+.finding-money{ font-family:var(--mono); font-size:23px; color:var(--breach); font-weight:700; margin-top:12px; }
+
+/* ---------- features ---------- */
+.features-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:48px; }
+.fcard{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
+.fcard .icon{ width:38px; height:38px; border-radius:9px; background:var(--panel2); border:1px solid var(--line-bright);
+  display:flex; align-items:center; justify-content:center; color:var(--phosphor); margin-bottom:17px; }
+.fcard h4{ font-size:15px; margin:0 0 8px; }
+.fcard p{ font-size:13px; color:var(--mute); margin:0; line-height:1.62; }
+
+/* ---------- market stats ---------- */
+.stat-row{ display:flex; gap:16px; margin-top:46px; flex-wrap:wrap; }
+.stat{ flex:1; min-width:190px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:24px; }
+.stat .n{ font-family:var(--mono); font-size:27px; font-weight:700; color:var(--phosphor); }
+.stat .l{ font-size:12px; color:var(--mute); margin-top:9px; line-height:1.5; }
+
+/* ---------- cta ---------- */
+.cta-section{ text-align:center; }
+.cta-section .eyebrow{ justify-content:center; }
+.cta-section h2{ font-size:clamp(1.8rem,2.8vw + 1rem,2.8rem); max-width:none; }
+.cta-section p.sec-lead{ margin-left:auto; margin-right:auto; }
+.cta-section .hero-cta{ justify-content:center; margin-top:34px; }
+
+/* ---------- footer ---------- */
+footer{ border-top:1px solid var(--line); padding:36px 0; }
+.footer-inner{ display:flex; justify-content:space-between; flex-wrap:wrap; gap:14px; align-items:center; }
+.footer-inner p{ font-size:12px; color:var(--mute); }
+.footer-links{ display:flex; gap:20px; }
+.footer-links a{ font-family:var(--mono); font-size:12px; color:var(--dim); text-decoration:none; }
+.footer-links a:hover{ color:var(--phosphor); }
+
+/* ---------- reveal + motion ---------- */
+[data-reveal]{ opacity:0; transform:translateY(18px); transition:opacity .6s ease, transform .6s ease; }
+[data-reveal].is-visible{ opacity:1; transform:none; }
+@keyframes blink{ 0%,100%{ opacity:1; } 50%{ opacity:0.15; } }
+@keyframes spin{ to{ transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce){
+  [data-reveal]{ transition:none; opacity:1; transform:none; }
+  .radar{ animation:none; }
+  .cursor{ animation:none; opacity:1; }
+  .status-dot{ animation:none; }
+  .btn{ transition:none; }
+  .token{ transition:none; }
+  .token.is-stuck{ animation:none; }
+  .log-row{ animation:none; opacity:1; }
+  .live-summary{ transition:none; }
+}
+
+/* ---------- responsive ---------- */
+@media (max-width:980px){
+  .triad{ grid-template-columns:1fr; }
+  .features-grid{ grid-template-columns:repeat(2,1fr); }
+  .rrow{ grid-template-columns:1fr; gap:9px; }
+  .rrow .meter{ order:3; }
+  .rrow .bss{ order:1; }
+  section{ padding:76px 0; }
+  .nav-links{ display:none; }
+}
+@media (max-width:640px){
+  .features-grid{ grid-template-columns:1fr; }
+  .stat-row{ flex-direction:column; }
+  .report-head{ flex-direction:column; }
+  .hero-cta{ flex-direction:column; align-items:stretch; }
+  .btn{ justify-content:center; }
+  .hero{ padding-top:60px; padding-bottom:76px; }
+  .radar{ width:560px; height:560px; top:-220px; right:-220px; }
+  .term-body{ font-size:11.5px; padding:18px 16px 20px; }
+  .lane-label{ width:62px; font-size:10px; }
+  .track-head{ margin-left:62px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="bg-vignette" aria-hidden="true"></div>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+      </svg>
+      BMAP
+    </a>
+    <nav class="nav-links">
+      <a href="#pipeline" data-scroll>Qanday ishlaydi</a>
+      <a href="#live-demo" data-scroll>Jonli tahlil</a>
+      <a href="#report" data-scroll>Namuna hisobot</a>
+      <a href="#features" data-scroll>Xususiyatlar</a>
+    </nav>
+    <span class="status-pill"><span class="status-dot" aria-hidden="true"></span>SKANER FAOL</span>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <div class="radar" aria-hidden="true"></div>
+    <div class="wrap">
+      <div class="hero-head">
+        <p class="eyebrow">Business Vulnerability Scanner</p>
+        <h1>Biznesingiz — <span class="accent">skanerlanmagan tarmoq.</span></h1>
+        <p class="lead">BMAP jarayonlaringizni bosqichma-bosqich skanerlaydi va pul hamda vaqtni yeb qo'yayotgan zaif nuqtani aniq topib beradi. Xuddi Nmap tarmoqda ochiq portni topgani kabi — faqat bu safar nishon port emas, biznes jarayoni.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#report" data-scroll>Namuna skanni ko'rish</a>
+          <a class="btn btn-secondary" href="#pipeline" data-scroll>Qanday ishlaydi →</a>
+        </div>
+        <div class="hero-stats">
+          <div><div class="n">5 daqiqa</div><div class="l">birinchi diagnozgacha</div></div>
+          <div><div class="n">1 CSV</div><div class="l">boshlash uchun yetarli</div></div>
+          <div><div class="n">0 kod</div><div class="l">integratsiya shart emas</div></div>
+        </div>
+      </div>
+
+      <div class="hero-term-wrap">
+        <div class="term" data-reveal>
+          <div class="term-bar">
+            <span class="term-dot" style="background:#E5563F"></span>
+            <span class="term-dot" style="background:#E3A83D"></span>
+            <span class="term-dot" style="background:#47D6A8"></span>
+            <span class="term-title">bmap — terminal</span>
+          </div>
+          <div class="term-body">
+            <div class="term-cmdline">
+              <span class="term-prompt">$</span><span class="term-cmd" id="term-cmd" data-cmd='bmap scan --target="Namuna Biznes" --source=savdo_voronka.csv'></span><span class="cursor" aria-hidden="true"></span>
+            </div>
+            <div id="term-lines">
+              <div class="term-line line-ok">[OK] Manba ulandi — 612 ta ish, 90 kunlik davr</div>
+              <div class="term-line line-ok">[OK] 5 ta jarayon bosqichi aniqlandi</div>
+              <div class="term-line line-info">[..] Oqim tahlil qilinmoqda — DFG qurilmoqda...</div>
+              <div class="term-line line-ok">[OK] Tahlil tugadi — 2.8s</div>
+              <div class="term-line">
+                <table class="term-table">
+                  <thead><tr><th>Bosqich</th><th>BSS</th><th>Daraja</th></tr></thead>
+                  <tbody>
+                    <tr><td>Yangi lead</td><td>1.2</td><td><span class="sev sev-low"><i class="sev-dot" aria-hidden="true"></i>LOW</span></td></tr>
+                    <tr><td>Birinchi aloqa</td><td>7.4</td><td><span class="sev sev-crit"><i class="sev-dot" aria-hidden="true"></i>KRITIK</span></td></tr>
+                    <tr><td>Malaka</td><td>3.1</td><td><span class="sev sev-low"><i class="sev-dot" aria-hidden="true"></i>LOW</span></td></tr>
+                    <tr><td>Taklif</td><td>2.8</td><td><span class="sev sev-low"><i class="sev-dot" aria-hidden="true"></i>LOW</span></td></tr>
+                    <tr><td>Muzokara</td><td>6.2</td><td><span class="sev sev-med"><i class="sev-dot" aria-hidden="true"></i>O'RTACHA</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="term-line line-critical">1 KRITIK zaiflik topildi · Taxminiy yo'qotish: 34.6 mln so'm/oy</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PROBLEM ================= -->
+  <section id="problem">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Muammo</p>
+      <h2 class="sec-title">Har bir biznesda ochiq zaiflik bor. Faqat hech kim skanerlamagan.</h2>
+      <p class="sec-lead">Pentester tarmoqqa ishonch bildirishdan oldin uni skanerlaydi — har bir portni tekshiradi, ochig'ini, filtrlanganini, zaifini topadi. Biznes esa ko'pincha teskari yo'l bilan boshqariladi: yillar davomida sezgi asosida, birorta jarayon hech qachon "skan" qilinmagan holda. Bottleneck xuddi yopilmagan port kabi — ko'rinmasa ham, har kuni sekin-asta pul oqizadi.</p>
+      <div class="triad">
+        <div class="triad-card">
+          <h4>Tarmoq xavfsizligida</h4>
+          <ul>
+            <li>Har bir port tekshiriladi</li>
+            <li>Zaiflik hujjatlashtiriladi</li>
+            <li>Xavf ball bilan o'lchanadi</li>
+          </ul>
+        </div>
+        <div class="triad-card">
+          <h4>Biznesda — hozirgacha</h4>
+          <ul>
+            <li>Jarayon faqat sezgi bilan boshqariladi</li>
+            <li>Muammo faqat "portlaganda" ko'rinadi</li>
+            <li>Yo'qotish hech qachon raqamlanmaydi</li>
+          </ul>
+        </div>
+        <div class="triad-card triad-card--bmap">
+          <h4>Biznesda — BMAP bilan</h4>
+          <ul>
+            <li>Har bosqich avtomatik skanerlanadi</li>
+            <li>Zaiflik BSS ball bilan hujjatlashtiriladi</li>
+            <li>Yo'qotish aniq so'mda ko'rsatiladi</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PIPELINE ================= -->
+  <section id="pipeline">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Qanday ishlaydi</p>
+      <h2 class="sec-title">Besh bosqichli skan.</h2>
+      <p class="sec-lead">Tarmoq skaneri bilan bir xil mantiq — nishonni aniqlashdan hisobotgacha, ammo nishon bu safar biznes jarayoni.</p>
+      <div class="pipeline-list">
+        <div class="pstep">
+          <div class="num">01</div>
+          <div><h3>Nishonni aniqlash</h3><p>POS, 1C, Telegram buyurtma jurnali, CRM yoki oddiy Excel — qaysi manba bo'lishidan qat'i nazar, BMAP unga ulanadi.</p></div>
+        </div>
+        <div class="pstep">
+          <div class="num">02</div>
+          <div><h3>Portlarni skanerlash</h3><p>Ma'lumotdagi har bir bosqich (faoliyat) avtomatik aniqlanadi va vaqt bo'yicha tartiblanib, jarayon xaritasiga aylantiriladi.</p></div>
+        </div>
+        <div class="pstep">
+          <div class="num">03</div>
+          <div><h3>Zaiflikni aniqlash</h3><p>Bosqichlar orasidagi haqiqiy oqim qayta tiklanadi — qayerda navbat uzayayotgani, qayerda ishlar orqaga qaytayotgani, qayerda mijoz yo'qolayotgani chiqadi.</p></div>
+        </div>
+        <div class="pstep">
+          <div class="num">04</div>
+          <div><h3>Og'irlikni baholash</h3><p>Har bir zaiflikka 0–10 oralig'ida BSS (Business Severity Score) beriladi va yo'qotish to'g'ridan-to'g'ri so'mga aylantiriladi.</p></div>
+        </div>
+        <div class="pstep">
+          <div class="num">05</div>
+          <div><h3>Hisobot</h3><p>Interaktiv jarayon xaritasi va bir varaqlik diagnoz tayyor bo'ladi — jamoa bilan ulashish yoki chop etish mumkin.</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= LIVE DEMO ================= -->
+  <section id="live-demo">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Qanday tahlil qilinadi</p>
+      <h2 class="sec-title">Har bitta buyurtma shunday tahlil qilinadi.</h2>
+      <p class="sec-lead">BMAP har bir buyurtmani (case) alohida kuzatadi — qaysi bosqichda, qachon bo'lganini aniq yozib boradi. Pastda — uchta shartli buyurtma jonli kuzatilmoqda. <em>(Vaqt taqdimot uchun tezlashtirilgan — real jarayon kunlar davom etadi.)</em></p>
+
+      <div class="live-panel">
+        <div class="track-wrap">
+          <div class="track">
+            <div class="track-head" aria-hidden="true">
+              <span style="left:4%">Yangi lead</span>
+              <span style="left:21%">Birinchi aloqa</span>
+              <span style="left:40%">Malaka</span>
+              <span style="left:59%">Taklif</span>
+              <span style="left:78%">Muzokara</span>
+              <span style="left:96%">Yutuq</span>
+            </div>
+
+            <div class="lane" data-case="a">
+              <span class="lane-label" style="color:var(--phosphor)">C-1042</span>
+              <div class="lane-line">
+                <span class="lane-tick" style="left:4%"></span><span class="lane-tick" style="left:21%"></span>
+                <span class="lane-tick" style="left:40%"></span><span class="lane-tick" style="left:59%"></span>
+                <span class="lane-tick" style="left:78%"></span><span class="lane-tick" style="left:96%"></span>
+                <div class="token tok-a" id="tok-a" style="left:4%"></div>
+              </div>
+            </div>
+            <div class="lane" data-case="b">
+              <span class="lane-label" style="color:var(--breach)">C-1088</span>
+              <div class="lane-line">
+                <span class="lane-tick" style="left:4%"></span><span class="lane-tick" style="left:21%"></span>
+                <span class="lane-tick" style="left:40%"></span><span class="lane-tick" style="left:59%"></span>
+                <span class="lane-tick" style="left:78%"></span><span class="lane-tick" style="left:96%"></span>
+                <div class="token tok-b" id="tok-b" style="left:4%"></div>
+              </div>
+            </div>
+            <div class="lane" data-case="c">
+              <span class="lane-label" style="color:var(--alert)">C-1156</span>
+              <div class="lane-line">
+                <span class="lane-tick" style="left:4%"></span><span class="lane-tick" style="left:21%"></span>
+                <span class="lane-tick" style="left:40%"></span><span class="lane-tick" style="left:59%"></span>
+                <span class="lane-tick" style="left:78%"></span><span class="lane-tick" style="left:96%"></span>
+                <div class="token tok-c" id="tok-c" style="left:4%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="live-log-wrap">
+          <div class="live-log-bar"><span>event_log — jonli oqim</span><span>case_id · activity · Δt</span></div>
+          <div class="live-log" id="live-log"></div>
+        </div>
+
+        <p class="live-summary" id="live-summary">3 buyurtma kuzatildi → 1 tasi "Birinchi aloqa" bosqichida voronkadan chiqib ketdi. Aynan shu naqsh 612 marta takrorlansa — pastdagi "Namuna skan natijasi" hosil bo'ladi.</p>
+
+        <button class="replay-btn" id="replay-btn" type="button">↻ Qaytadan ko'rish</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SAMPLE REPORT ================= -->
+  <section id="report">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Namuna skan natijasi</p>
+      <h2 class="sec-title">Skan tugadi. Natija — sizning qo'lingizda.</h2>
+      <p class="sec-lead">Quyida — namuna ma'lumot asosida generatsiya qilingan haqiqiy ko'rinishdagi hisobot. Real biznes ma'lumoti bilan xuddi shu formatda, lekin sizning raqamlaringiz bilan chiqadi.</p>
+
+      <div class="report-card">
+        <div class="report-head">
+          <div class="report-target">savdo_voronka.csv<span>NISHON · NAMUNA MA'LUMOT</span></div>
+          <div class="report-chips">
+            <span class="chip">612 ish skanerlandi</span>
+            <span class="chip">5 bosqich topildi</span>
+            <span class="chip crit">1 KRITIK</span>
+          </div>
+        </div>
+        <div class="report-rows">
+          <div class="rrow">
+            <div class="stage">Yangi lead</div>
+            <div class="bss" style="color:var(--phosphor)">1.2</div>
+            <div class="desc">Sog'lom oqim, sezilarli kechikish yo'q</div>
+            <div class="meter"><i style="width:12%;background:var(--phosphor)"></i></div>
+          </div>
+          <div class="rrow">
+            <div class="stage">Birinchi aloqa</div>
+            <div class="bss" style="color:var(--breach)">7.4</div>
+            <div class="desc">O'rtacha 2.1 kun kutadi, 45% javobsiz qoladi</div>
+            <div class="meter"><i style="width:74%;background:var(--breach)"></i></div>
+          </div>
+          <div class="rrow">
+            <div class="stage">Malaka</div>
+            <div class="bss" style="color:var(--phosphor)">3.1</div>
+            <div class="desc">Kichik kechikish, me'yor doirasida</div>
+            <div class="meter"><i style="width:31%;background:var(--phosphor)"></i></div>
+          </div>
+          <div class="rrow">
+            <div class="stage">Taklif</div>
+            <div class="bss" style="color:var(--phosphor)">2.8</div>
+            <div class="desc">Kichik kechikish, me'yor doirasida</div>
+            <div class="meter"><i style="width:28%;background:var(--phosphor)"></i></div>
+          </div>
+          <div class="rrow">
+            <div class="stage">Muzokara</div>
+            <div class="bss" style="color:var(--alert)">6.2</div>
+            <div class="desc">O'rtacha darajadagi yo'qotish, kuzatish tavsiya etiladi</div>
+            <div class="meter"><i style="width:62%;background:var(--alert)"></i></div>
+          </div>
+        </div>
+        <details class="finding">
+          <summary>KRITIK ZAIFLIK — Birinchi aloqa bosqichi (BSS 7.4)</summary>
+          <div class="finding-body">
+            Lidlar birinchi aloqadan keyingi bosqichga o'tishini kutib, o'rtacha 2.1 kun turib qoladi. Shu muddat ichida ularning 45%i umuman javob bermay, voronkadan chiqib ketadi. Bu — butun jarayondagi eng katta yagona yo'qotish nuqtasi.
+            <div class="finding-money">≈ 34,600,000 so'm/oy</div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FEATURES ================= -->
+  <section id="features">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Xususiyatlar</p>
+      <h2 class="sec-title">Bitta CSV. To'liq diagnoz.</h2>
+      <div class="features-grid">
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4"/><path d="M12 3v10M8 9l4 4 4-4"/></svg></div>
+          <h4>Universal import</h4>
+          <p>POS, 1C, Telegram, CRM, Excel — istalgan formatdan ma'lumot ulanadi.</p>
+        </div>
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></div>
+          <h4>Avtomatik xaritalash</h4>
+          <p>Ustunlarni qo'lda sozlashning hojati yo'q — tizim o'zi taxmin qiladi.</p>
+        </div>
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/></svg></div>
+          <h4>Har qanday biznes turi</h4>
+          <p>Savdo, restoran, klinika, ishlab chiqarish — bir xil dvigatel ishlaydi.</p>
+        </div>
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 9v.01M18 15v.01"/></svg></div>
+          <h4>Pul hisobida natija</h4>
+          <p>"Foiz" emas — to'g'ridan-to'g'ri necha so'm yo'qotilayotgani ko'rinadi.</p>
+        </div>
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M7.1 6.6h9.8M6.6 8l4.7 8M17.4 8l-4.7 8"/></svg></div>
+          <h4>Jonli jarayon xaritasi</h4>
+          <p>Bottleneck ko'zga tashlanadi — grafda qizil chiziq bo'lib yonadi.</p>
+        </div>
+        <div class="fcard">
+          <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2.5h9l3 3V21a1 1 0 01-1 1H6a1 1 0 01-1-1V3.5a1 1 0 011-1z"/><path d="M9 12h6M9 16h6M9 8h2"/></svg></div>
+          <h4>Bir varaqlik hisobot</h4>
+          <p>Chop etish yoki ulashish uchun tayyor — mijozga bevosita ko'rsatiladi.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MARKET ================= -->
+  <section id="market">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Nega hozirgacha yo'q edi</p>
+      <h2 class="sec-title">Bu texnologiya bor edi. Faqat kichik biznesga yetib kelmagan.</h2>
+      <p class="sec-lead">Process mining — yirik korporatsiyalar (bank, aviakompaniya, ishlab chiqarish) yillar davomida ishlatib kelayotgan yo'nalish. Lekin narxi va murakkabligi kichik va o'rta biznes uchun mos emas edi. BMAP xuddi shu tamoyilni O'rta Osiyo bizneslari uchun soddalashtiradi.</p>
+      <div class="stat-row">
+        <div class="stat"><div class="n">$11–13 mlrd</div><div class="l">yetakchi process mining kompaniyasi (Celonis) bahosi</div></div>
+        <div class="stat"><div class="n">0</div><div class="l">O'rta Osiyoda shu turdagi mahalliy yechim</div></div>
+        <div class="stat"><div class="n">5 daq</div><div class="l">BMAP'da birinchi diagnozgacha ketadigan vaqt</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA ================= -->
+  <section id="cta" class="cta-section">
+    <div class="wrap" data-reveal>
+      <p class="eyebrow">Keyingi qadam</p>
+      <h2 class="sec-title">Birinchi skanni birga o'tkazamiz.</h2>
+      <p class="sec-lead">Real biznes ma'lumotini yuklang — bir nechta daqiqada birinchi diagnozni ko'rasiz. CSV, Excel eksporti yoki Telegram buyurtma jurnali — format muhim emas.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="mailto:info@bmap.uz">Demo so'rash</a>
+        <a class="btn btn-secondary" href="#top" data-scroll>Yuqoriga qaytish ↑</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-inner">
+    <p>© <span id="year">2026</span> BMAP · Business MAP. Prototip versiya — namunaviy ma'lumotlar asosida.</p>
+    <div class="footer-links">
+      <a href="#" rel="noopener">Telegram</a>
+      <a href="#" rel="noopener">GitHub</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll('a[data-scroll]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var id = a.getAttribute('href');
+      if (id && id.charAt(0) === '#') {
+        var target = document.querySelector(id);
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
+        }
+      }
+    });
+  });
+
+  var revealEls = document.querySelectorAll('[data-reveal]');
+  if ('IntersectionObserver' in window && !reduceMotion) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(function (el) { io.observe(el); });
+  } else {
+    revealEls.forEach(function (el) { el.classList.add('is-visible'); });
+  }
+
+  var cmdEl = document.getElementById('term-cmd');
+  var linesWrap = document.getElementById('term-lines');
+  if (cmdEl && linesWrap) {
+    var cmdText = cmdEl.getAttribute('data-cmd') || '';
+    var lines = Array.prototype.slice.call(linesWrap.querySelectorAll('.term-line'));
+
+    if (reduceMotion) {
+      cmdEl.textContent = cmdText;
+      lines.forEach(function (l) { l.classList.add('shown'); });
+    } else {
+      cmdEl.textContent = '';
+      var i = 0;
+      var typeCmd = function () {
+        if (i <= cmdText.length) {
+          cmdEl.textContent = cmdText.slice(0, i);
+          i += 1;
+          setTimeout(typeCmd, 26);
+        } else {
+          setTimeout(revealLines, 300);
+        }
+      };
+      var li = 0;
+      var revealLines = function () {
+        if (li < lines.length) {
+          lines[li].classList.add('shown');
+          li += 1;
+          setTimeout(revealLines, 100);
+        }
+      };
+      setTimeout(typeCmd, 550);
+    }
+  }
+
+  var year = document.getElementById('year');
+  if (year) year.textContent = new Date().getFullYear();
+})();
+
+(function () {
+  var section = document.getElementById('live-demo');
+  if (!section) return;
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var CP = [4, 21, 40, 59, 78, 96];
+  var NAMES = ["Yangi lead", "Birinchi aloqa", "Malaka", "Taklif", "Muzokara", "Yutuq"];
+  var CASE_ID = { a: 'C-1042', b: 'C-1088', c: 'C-1156' };
+  var CASE_COLOR = { a: 'var(--phosphor)', b: 'var(--breach)', c: 'var(--alert)' };
+
+  /* [delayMs, caseKey, checkpointIndex, simTime, flag]  flag: ok | stuck | drop */
+  var TIMELINE = [
+    [200, 'a', 0, '0.0 kun', 'ok'],
+    [500, 'b', 0, '0.0 kun', 'ok'],
+    [800, 'c', 0, '0.0 kun', 'ok'],
+    [1500, 'a', 1, '0.4 kun', 'ok'],
+    [1800, 'b', 1, '0.3 kun', 'ok'],
+    [2100, 'c', 1, '0.5 kun', 'ok'],
+    [2800, 'a', 2, '0.9 kun', 'ok'],
+    [3300, 'b', 1, '2.1 kun', 'stuck'],
+    [3600, 'c', 2, '1.0 kun', 'ok'],
+    [4200, 'a', 3, '1.3 kun', 'ok'],
+    [4900, 'b', -1, '—', 'drop'],
+    [5000, 'c', 3, '1.6 kun', 'ok'],
+    [5800, 'a', 4, '1.9 kun', 'ok'],
+    [6400, 'c', 4, '2.0 kun', 'stuck'],
+    [7400, 'a', 5, '2.2 kun', 'ok'],
+    [8200, 'c', 5, '3.6 kun', 'ok']
+  ];
+  var END_DELAY = 9000;
+
+  var tokens = { a: document.getElementById('tok-a'), b: document.getElementById('tok-b'), c: document.getElementById('tok-c') };
+  var logEl = document.getElementById('live-log');
+  var summaryEl = document.getElementById('live-summary');
+  var replayBtn = document.getElementById('replay-btn');
+  var timers = [];
+
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+  function resetState() {
+    clearTimers();
+    if (logEl) logEl.innerHTML = '';
+    if (summaryEl) summaryEl.classList.remove('shown');
+    Object.keys(tokens).forEach(function (k) {
+      var t = tokens[k];
+      if (!t) return;
+      t.className = 'token tok-' + k;
+      t.style.left = CP[0] + '%';
+    });
+  }
+
+  function applyEvent(ev) {
+    var caseKey = ev[1], cpIndex = ev[2], simTime = ev[3], flag = ev[4];
+    var t = tokens[caseKey];
+    if (!t) return;
+    if (flag === 'drop') {
+      t.classList.remove('is-stuck');
+      t.classList.add('is-dropped');
+    } else {
+      t.classList.remove('is-stuck');
+      t.style.left = CP[cpIndex] + '%';
+      if (flag === 'stuck') t.classList.add('is-stuck');
+    }
+    if (logEl) {
+      var row = document.createElement('div');
+      row.className = 'log-row' + (flag === 'stuck' ? ' is-stuck' : '') + (flag === 'drop' ? ' is-drop' : '');
+      var stageLabel = flag === 'drop' ? 'voronkadan chiqdi' : NAMES[cpIndex];
+      var caseSpan = document.createElement('span');
+      caseSpan.style.color = CASE_COLOR[caseKey];
+      caseSpan.style.fontWeight = '600';
+      caseSpan.textContent = CASE_ID[caseKey];
+      var stageSpan = document.createElement('span');
+      stageSpan.className = 'log-stage';
+      stageSpan.textContent = stageLabel;
+      var timeSpan = document.createElement('span');
+      timeSpan.className = 'log-time';
+      timeSpan.textContent = simTime;
+      row.appendChild(caseSpan); row.appendChild(stageSpan); row.appendChild(timeSpan);
+      logEl.appendChild(row);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  }
+
+  function play() {
+    resetState();
+    if (reduceMotion) {
+      TIMELINE.forEach(function (ev) { applyEvent(ev); });
+      if (summaryEl) summaryEl.classList.add('shown');
+      return;
+    }
+    TIMELINE.forEach(function (ev) {
+      timers.push(setTimeout(function () { applyEvent(ev); }, ev[0]));
+    });
+    timers.push(setTimeout(function () {
+      if (summaryEl) summaryEl.classList.add('shown');
+    }, END_DELAY));
+  }
+
+  if (replayBtn) replayBtn.addEventListener('click', play);
+
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          play();
+          io.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    io.observe(section);
+  } else {
+    play();
+  }
+})();
+</script>
+</body>
+</html>
